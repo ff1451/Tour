@@ -15,4 +15,5 @@ export default {
   endOfLine: 'auto',
   embeddedLanguageFormatting: 'auto',
   singleAttributePerLine: false,
+  "plugins": [require('prettier-plugin-tailwindcss')],
 };
