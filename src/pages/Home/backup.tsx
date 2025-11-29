@@ -10,19 +10,18 @@ import {
   X,
   Search,
   Sun,
-  Users,
   CloudRain,
   Cloudy,
   Droplets,
 } from 'lucide-react';
-import { usePopularTouristSpots, useMultipleAreaTouristSpots, useOngoingFestivals } from '../hooks/useTourAPI';
-import { AREA_CODE, CONTENT_TYPE } from '../api/tourAPI';
-import type { TouristSpot } from '../types/tourAPI.types';
-import { useMultipleWeather } from '../hooks/useWeatherAPI';
-import { convertToGrid } from '../api/weatherAPI';
-import type { ParsedWeatherData } from '../types/weatherAPI.types';
-import { useLatestPhotoAwards } from '../hooks/usePhotoAwardAPI';
-import type { ParsedPhotoAward } from '../types/photoAwardAPI.types';
+import { useMultipleAreaTouristSpots, useOngoingFestivals } from '../../hooks/useTourAPI';
+import { AREA_CODE, CONTENT_TYPE } from '../../api/tourAPI';
+import type { TouristSpot } from '../../types/tourAPI.types';
+import { useMultipleWeather } from '../../hooks/useWeatherAPI';
+import { convertToGrid } from '../../api/weatherAPI';
+import type { ParsedWeatherData } from '../../types/weatherAPI.types';
+import { useLatestPhotoAwards } from '../../hooks/usePhotoAwardAPI';
+import type { ParsedPhotoAward } from '../../types/photoAwardAPI.types';
 
 // 컴포넌트에서 사용할 타입 정의
 interface HeroSlide {
@@ -66,18 +65,15 @@ const HomePage: React.FC = () => {
     CONTENT_TYPE.TOURIST_SPOT
   );
 
-  // 히어로 슬라이더용 관광지 (제주 - 이미지가 좋은 곳)
-  const { data: heroData, loading: heroLoading } = usePopularTouristSpots(AREA_CODE.JEJU, 3);
-
-  // 관광공모전 수상작 조회 (최신 6개)
-  const { data: photoAwardsData, loading: photoAwardsLoading } = useLatestPhotoAwards(6);
+  // 관광공모전 수상작 조회 (히어로 슬라이더용 3개 + 갤러리용 6개 = 총 9개)
+  const { data: photoAwardsData, loading: photoAwardsLoading } = useLatestPhotoAwards(9);
 
   // 진행중인 축제 조회 (30일 범위)
   const { data: festivalsData, loading: festivalsLoading } = useOngoingFestivals(null, 30);
 
   // API 데이터를 컴포넌트에서 사용할 형태로 변환
   const getHeroSlides = (): HeroSlide[] => {
-    if (heroLoading || !heroData?.items?.item) {
+    if (photoAwardsLoading || !photoAwardsData || photoAwardsData.length === 0) {
       return [
         {
           id: 1,
@@ -89,17 +85,13 @@ const HomePage: React.FC = () => {
       ];
     }
 
-    const items = heroData.items.item;
-    const itemsList = Array.isArray(items) ? items.slice(0, 3) : [items];
-
-    return itemsList.map((item, index) => ({
-      id: item.contentid || index,
-      image:
-        item.firstimage ||
-        `https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=1200&q=80&auto=format&fit=crop&sig=${index}`,
-      title: item.title || '아름다운 여행지',
-      subtitle: item.addr1 || '멋진 경치를 감상하세요',
-      location: item.addr1?.split(' ')[0] + ' ' + (item.addr1?.split(' ')[1] || ''),
+    // 상위 3개 수상작을 히어로 슬라이드로 사용
+    return photoAwardsData.slice(0, 3).map((award) => ({
+      id: award.id,
+      image: award.image, // 고품질 원본 이미지 사용
+      title: award.title,
+      subtitle: `${award.photographer} 작가 · ${award.awardRank}`,
+      location: award.location.split(',')[0].trim(), // 첫 번째 위치 정보만 사용
     }));
   };
 
@@ -360,48 +352,6 @@ const HomePage: React.FC = () => {
         </div>
       </section>
 
-      {/* Quick Stats */}
-      <section className="relative z-10 -mt-16 bg-white">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="rounded-2xl bg-white p-6 shadow-xl md:p-8">
-            <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
-              <div className="text-center">
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
-                  <MapPin className="h-6 w-6 text-blue-600" />
-                </div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {popularDestinations.length > 0 ? popularDestinations.length : '-'}
-                </div>
-                <div className="text-sm text-gray-600">표시된 관광지</div>
-              </div>
-              <div className="text-center">
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
-                  <Calendar className="h-6 w-6 text-green-600" />
-                </div>
-                <div className="text-2xl font-bold text-gray-900">{festivals.length || '6'}</div>
-                <div className="text-sm text-gray-600">진행중/예정 축제</div>
-              </div>
-              <div className="text-center">
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-purple-100">
-                  <Camera className="h-6 w-6 text-purple-600" />
-                </div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {photoAwards.length > 0 ? photoAwards.length : '-'}
-                </div>
-                <div className="text-sm text-gray-600">수상작 표시</div>
-              </div>
-              <div className="text-center">
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-orange-100">
-                  <Users className="h-6 w-6 text-orange-600" />
-                </div>
-                <div className="text-2xl font-bold text-gray-900">2.4M</div>
-                <div className="text-sm text-gray-600">월간 방문객</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* Popular Destinations */}
       <section className="py-16 md:py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -594,7 +544,7 @@ const HomePage: React.FC = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-              {photoAwards.slice(0, 3).map((photo) => (
+              {photoAwards.slice(3, 6).map((photo) => (
                 <div key={photo.id} className="group relative cursor-pointer overflow-hidden rounded-xl shadow-lg">
                   <div className="aspect-w-4 aspect-h-5 relative h-96">
                     <img
@@ -722,22 +672,6 @@ const HomePage: React.FC = () => {
                 </div>
               );
             })}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-16 md:py-24">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="from-primary-600 rounded-2xl bg-gradient-to-r to-blue-700 p-8 text-center text-white md:p-12">
-            <h2 className="mb-4 text-3xl font-bold md:text-4xl">나만의 여행 계획을 세워보세요</h2>
-            <p className="mx-auto mb-8 max-w-2xl text-lg text-blue-100">
-              AI 기반 추천으로 최적의 여행 코스를 만들고, 실시간 날씨와 혼잡도 정보로 완벽한 여행을 준비하세요.
-            </p>
-            <button className="text-primary-600 inline-flex items-center space-x-2 rounded-full bg-white px-8 py-3 font-bold transition hover:bg-gray-100">
-              <span>여행 계획 시작하기</span>
-              <ChevronRight className="h-5 w-5" />
-            </button>
           </div>
         </div>
       </section>

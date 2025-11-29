@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import HomePage from './pages/Homepage';
+import HomePage from './pages/Home/Homepage';
 import { useEffect } from 'react';
 import { setWeatherServiceKey } from './api/weatherAPI';
 import { setServiceKey } from './api/tourAPI';
