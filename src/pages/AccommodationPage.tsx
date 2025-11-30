@@ -28,6 +28,7 @@ const AccommodationPage: React.FC = () => {
   const [searchParams] = useSearchParams();
 
   const [accommodations, setAccommodations] = useState<Accommodation[]>([]);
+  const [allAccommodations, setAllAccommodations] = useState<Accommodation[]>([]); // 전체 데이터 저장
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [totalFiltered, setTotalFiltered] = useState(0); // 필터링된 전체 결과 수
@@ -84,52 +85,106 @@ const AccommodationPage: React.FC = () => {
     { value: 'R', label: '리뷰순' },
   ];
 
+  // API 호출이 필요한 필터
   useEffect(() => {
     loadAccommodations(1);
-  }, [selectedArea, sortBy]); // selectedType과 searchQuery는 제외 (클라이언트 사이드 필터링)
+  }, [selectedArea, sortBy]);
+
+  // 클라이언트 사이드 필터링만 필요한 경우
+  useEffect(() => {
+    if (allAccommodations.length === 0) return; // 초기 로드는 건너뜀
+    applyClientFilters();
+  }, [selectedType, searchQuery]);
+
+  // 클라이언트 사이드 필터링 함수
+  const applyClientFilters = (page: number = 1) => {
+    console.log('클라이언트 필터 적용:', { selectedType, searchQuery, page });
+
+    let filtered = [...allAccommodations];
+
+    // 1. 숙박 타입 필터링
+    if (selectedType) {
+      console.log('타입 필터 적용:', selectedType);
+      filtered = filtered.filter((item) => {
+        const title = item.title.toLowerCase();
+        const type = selectedType.toLowerCase();
+
+        switch (type) {
+          case 'hotel':
+            return title.includes('호텔') || title.includes('hotel');
+          case 'motel':
+            return title.includes('모텔') || title.includes('motel');
+          case 'pension':
+            return title.includes('펜션') || title.includes('pension');
+          case 'guesthouse':
+            return (
+              title.includes('게스트') || title.includes('하우스') || title.includes('guest') || title.includes('house')
+            );
+          case 'resort':
+            return title.includes('리조트') || title.includes('resort');
+          default:
+            return true;
+        }
+      });
+      console.log('타입 필터 후 결과:', filtered.length);
+    }
+
+    // 2. 검색어 필터링
+    if (searchQuery.trim()) {
+      console.log('검색어 필터 적용:', searchQuery);
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (item) => item.title.toLowerCase().includes(query) || (item.addr1 && item.addr1.toLowerCase().includes(query))
+      );
+      console.log('검색어 필터 후 결과:', filtered.length);
+    }
+
+    // 3. 페이지네이션
+    const startIndex = (page - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginatedResults = filtered.slice(startIndex, endIndex);
+
+    console.log('클라이언트 필터 최종 결과:', paginatedResults.length);
+
+    setTotalFiltered(filtered.length);
+    setAccommodations(paginatedResults);
+    setCurrentPage(page);
+  };
 
   const loadAccommodations = async (page: number) => {
     try {
       setLoading(true);
       setError(null);
 
-      console.log('숙박 검색:', {
+      console.log('숙박 API 호출:', {
         selectedArea,
-        selectedType,
         sortBy,
         page,
-        searchQuery,
       });
 
       // API 호출 - 많은 데이터를 가져오기
       const response = await tourApi.searchStay({
         areaCode: selectedArea || undefined,
         numOfRows: 100, // 더 많은 결과를 가져와서 클라이언트에서 필터링
-        pageNo: page,
+        pageNo: 1, // 항상 첫 페이지에서 100개
         arrange: sortBy as any,
       });
 
-      console.log('숙박 검색 결과:', response);
-      console.log(
-        '결과 샘플 (처음 3개):',
-        response.slice(0, 3).map((r) => ({
-          title: r.title,
-          addr1: r.addr1,
-        }))
-      );
+      console.log('숙박 API 결과:', response.length, '개');
+
+      // 전체 데이터 저장
+      setAllAccommodations(response);
 
       // 클라이언트 사이드 필터링
       let filtered = response;
 
-      // 1. 숙박 타입 필터링 (더 유연하게)
+      // 1. 숙박 타입 필터링
       if (selectedType) {
         console.log('타입 필터 적용:', selectedType);
         filtered = filtered.filter((item) => {
           const title = item.title.toLowerCase();
-          const addr = (item.addr1 || '').toLowerCase();
           const type = selectedType.toLowerCase();
 
-          // 타입별 매칭 로직
           switch (type) {
             case 'hotel':
               return title.includes('호텔') || title.includes('hotel');
@@ -178,6 +233,7 @@ const AccommodationPage: React.FC = () => {
       console.error('숙박 로드 실패:', err);
       setError('숙박 정보를 불러오는데 실패했습니다.');
       setAccommodations([]);
+      setAllAccommodations([]);
     } finally {
       setLoading(false);
     }
@@ -196,8 +252,7 @@ const AccommodationPage: React.FC = () => {
     setSelectedType('');
     setSortBy('O');
     setCurrentPage(1);
-    // 초기화 후 재로드
-    setTimeout(() => loadAccommodations(1), 0);
+    // useEffect가 자동으로 처리
   };
 
   return (
@@ -283,8 +338,7 @@ const AccommodationPage: React.FC = () => {
                     key={type.id}
                     onClick={() => {
                       setSelectedType(type.id);
-                      // 타입 변경 시 페이지 1로 리셋하고 재로드
-                      setTimeout(() => loadAccommodations(1), 0);
+                      // useEffect가 자동으로 처리
                     }}
                     className={`rounded-xl border-2 p-4 transition-all ${
                       selectedType === type.id
@@ -544,7 +598,7 @@ const AccommodationPage: React.FC = () => {
           <div className="mt-8 flex justify-center">
             <div className="flex items-center gap-2">
               <button
-                onClick={() => loadAccommodations(currentPage - 1)}
+                onClick={() => applyClientFilters(currentPage - 1)}
                 disabled={currentPage === 1}
                 className="rounded-lg border border-amber-300 px-4 py-2 transition-colors hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -560,7 +614,7 @@ const AccommodationPage: React.FC = () => {
                   pageButtons.push(
                     <button
                       key={1}
-                      onClick={() => loadAccommodations(1)}
+                      onClick={() => applyClientFilters(1)}
                       className="rounded-lg border border-amber-300 px-4 py-2 transition-colors hover:bg-amber-50"
                     >
                       1
@@ -579,7 +633,7 @@ const AccommodationPage: React.FC = () => {
                   pageButtons.push(
                     <button
                       key={i}
-                      onClick={() => loadAccommodations(i)}
+                      onClick={() => applyClientFilters(i)}
                       disabled={i === currentPage}
                       className={`rounded-lg px-4 py-2 transition-colors ${
                         i === currentPage
@@ -596,7 +650,7 @@ const AccommodationPage: React.FC = () => {
               })()}
 
               <button
-                onClick={() => loadAccommodations(currentPage + 1)}
+                onClick={() => applyClientFilters(currentPage + 1)}
                 disabled={currentPage * itemsPerPage >= totalFiltered}
                 className="rounded-lg border border-amber-300 px-4 py-2 transition-colors hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
